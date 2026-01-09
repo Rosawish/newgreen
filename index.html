@@ -1,0 +1,329 @@
+import React, { useState, useMemo } from 'react';
+import { 
+  Zap, 
+  TrendingDown, 
+  Plus, 
+  Trash2, 
+  ChevronRight, 
+  ChevronDown, 
+  Users, 
+  Calculator,
+  Building2,
+  DollarSign,
+  AlertCircle,
+  ArrowRight,
+  Info
+} from 'lucide-react';
+
+const App = () => {
+  // --- 1. 總公司基礎指標設定 ---
+  const [config, setConfig] = useState({
+    headcount: 48,
+    avgSalary: 40000,
+    attendanceRate: 95,
+    newSiteKw: 50000,        // 10元/Kw
+    meterKw: 30000,          // 20元/Kw
+    electricityKw: 15000,    // 40元/Kw
+  });
+
+  // --- 2. 組織水庫結構 (可動態增減) ---
+  const [departments, setDepartments] = useState([
+    { 
+      id: Date.now(), 
+      name: '工程處', 
+      weight: 0.35, 
+      headRatio: 0.05,
+      isExpanded: true,
+      subUnits: [
+        { id: Date.now() + 1, name: 'A1 部', weight: 0.25, managerRatio: 0.02, staffCount: 3 },
+        { id: Date.now() + 2, name: 'A2 部', weight: 0.70, managerRatio: 0.03, staffCount: 10 }
+      ]
+    }
+  ]);
+
+  // --- 3. 核心邏輯計算 ---
+  const calculation = useMemo(() => {
+    // 總公司水庫計算
+    const yearEndPool = config.headcount * config.avgSalary;
+    const attendancePool = config.attendanceRate >= 70 
+      ? config.headcount * config.avgSalary * (config.attendanceRate / 100) : 0;
+    
+    const performancePool = (config.newSiteKw * 10) + (config.meterKw * 20) + (config.electricityKw * 40);
+    const totalCompanyBudget = yearEndPool + attendancePool + performancePool;
+
+    // 計算部門層級數據
+    const totalDeptWeight = departments.reduce((sum, d) => sum + d.weight, 0);
+    const processedDepts = departments.map(dept => {
+        const deptBudget = performancePool * dept.weight;
+        const headBonus = deptBudget * dept.headRatio;
+        const subUnitPoolTotal = deptBudget - headBonus;
+
+        const processedSubUnits = dept.subUnits.map(sub => {
+            const subBudget = subUnitPoolTotal * sub.weight;
+            const managerBonus = subBudget * sub.managerRatio;
+            const staffBudget = subBudget - managerBonus;
+            const perStaff = sub.staffCount > 0 ? staffBudget / sub.staffCount : 0;
+            return { ...sub, subBudget, managerBonus, staffBudget, perStaff };
+        });
+
+        return { ...dept, deptBudget, headBonus, subUnitPoolTotal, processedSubUnits };
+    });
+
+    return { yearEndPool, attendancePool, performancePool, totalCompanyBudget, processedDepts, totalDeptWeight };
+  }, [config, departments]);
+
+  // --- 4. 操作功能 ---
+  const addDept = () => {
+    setDepartments([...departments, { 
+      id: Date.now(), name: '新部門', weight: 0, headRatio: 0.05, isExpanded: true, subUnits: [] 
+    }]);
+  };
+
+  const removeDept = (id) => setDepartments(departments.filter(d => d.id !== id));
+
+  const addSubUnit = (deptId) => {
+    setDepartments(departments.map(d => d.id === deptId ? {
+      ...d, subUnits: [...d.subUnits, { id: Date.now(), name: '新部級單位', weight: 0, managerRatio: 0.02, staffCount: 1 }]
+    } : d));
+  };
+
+  const updateDept = (id, field, value) => {
+    setDepartments(departments.map(d => d.id === id ? { ...d, [field]: value } : d));
+  };
+
+  const updateSubUnit = (deptId, subId, field, value) => {
+    setDepartments(departments.map(d => d.id === deptId ? {
+      ...d, subUnits: d.subUnits.map(s => s.id === subId ? { ...s, [field]: value } : s)
+    } : d));
+  };
+
+  // --- 5. UI 輔助 ---
+  const formatNum = (v) => new Intl.NumberFormat('zh-TW', { style: 'currency', currency: 'TWD', maximumFractionDigits: 0 }).format(v);
+
+  return (
+    <div className="min-h-screen bg-[#f8fafc] text-slate-800 font-sans pb-20">
+      {/* Header */}
+      <header className="bg-slate-900 text-white p-6 shadow-xl sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto flex justify-between items-center">
+          <div className="flex items-center gap-4">
+            <div className="bg-amber-500 p-2 rounded-xl"><Zap size={28} /></div>
+            <div>
+              <h1 className="text-2xl font-black tracking-tight uppercase">績效獎金戰情室</h1>
+              <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">Performance Bonus War Room</p>
+            </div>
+          </div>
+          <div className="flex gap-6 items-center">
+            <div className="text-right">
+                <p className="text-slate-500 text-[10px] font-black uppercase">總發放預算概算</p>
+                <p className="text-2xl font-black text-amber-400">{formatNum(calculation.totalCompanyBudget)}</p>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <main className="max-w-7xl mx-auto p-4 md:p-8 space-y-8">
+        
+        {/* 第一層：總公司水源設定 (Input) */}
+        <section className="bg-white rounded-3xl shadow-sm border border-slate-200 p-8">
+          <div className="flex items-center gap-2 mb-8 border-b border-slate-100 pb-4">
+            <Calculator className="text-blue-500" />
+            <h2 className="text-xl font-black">第一階段：總公司水庫計算 (Kw 基準)</h2>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div className="space-y-4">
+                <h3 className="text-xs font-black text-slate-400 uppercase">案場指標設定</h3>
+                <div className="space-y-4">
+                    <KwInput label="新場建置 Kw (10元)" value={config.newSiteKw} onChange={(v)=>setConfig({...config, newSiteKw:v})} color="amber" />
+                    <KwInput label="掛表 Kw (20元)" value={config.meterKw} onChange={(v)=>setConfig({...config, meterKw:v})} color="emerald" />
+                    <KwInput label="電費收入 Kw (40元)" value={config.electricityKw} onChange={(v)=>setConfig({...config, electricityKw:v})} color="blue" />
+                </div>
+            </div>
+            <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="bg-slate-50 p-6 rounded-2xl flex flex-col justify-between">
+                    <div>
+                        <p className="text-xs font-black text-slate-400 uppercase mb-2">出勤與基本保障</p>
+                        <div className="space-y-3">
+                            <div className="flex justify-between items-center">
+                                <span className="text-sm font-bold">總人數 / 月薪</span>
+                                <span className="text-sm font-black text-blue-600">{config.headcount}人 / {formatNum(config.avgSalary)}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                                <span className="text-sm font-bold">平均出勤率</span>
+                                <input type="number" value={config.attendanceRate} onChange={(e)=>setConfig({...config, attendanceRate:e.target.value})} className="w-16 text-center font-black bg-white border border-slate-200 rounded" />
+                            </div>
+                        </div>
+                    </div>
+                    <div className="mt-4 pt-4 border-t border-slate-200">
+                        <div className="flex justify-between">
+                            <span className="text-xs font-bold text-slate-500">基本年終 + 全勤</span>
+                            <span className="font-black text-slate-700">{formatNum(calculation.yearEndPool + calculation.attendancePool)}</span>
+                        </div>
+                    </div>
+                </div>
+                <div className="bg-blue-600 p-6 rounded-2xl text-white flex flex-col justify-center">
+                    <p className="text-blue-200 text-xs font-black uppercase mb-2">可分配績效水庫 (Performance Pool)</p>
+                    <h3 className="text-4xl font-black">{formatNum(calculation.performancePool)}</h3>
+                    <p className="text-blue-200 text-[10px] mt-4 font-bold">此部分將依照「部門貢獻權重」向下流動</p>
+                </div>
+            </div>
+          </div>
+        </section>
+
+        {/* 第二層：組織水庫向下展開 (Organization Waterfall) */}
+        <section className="space-y-6">
+          <div className="flex justify-between items-end">
+            <div className="flex items-center gap-2">
+                <Building2 className="text-indigo-500" />
+                <h2 className="text-xl font-black">第二階段：組織水庫向下展開</h2>
+            </div>
+            <button onClick={addDept} className="bg-indigo-600 text-white px-6 py-2 rounded-full font-black text-sm flex items-center gap-2 hover:bg-indigo-700 transition-all shadow-lg">
+                <Plus size={18} /> 新增部門節點
+            </button>
+          </div>
+
+          {/* 預算檢核提示 */}
+          {Math.abs(calculation.totalDeptWeight - 1) > 0.001 && (
+            <div className="bg-red-50 border border-red-200 p-4 rounded-2xl flex items-center gap-3 text-red-600 font-bold">
+                <AlertCircle size={20} />
+                <span>部門分配權重總和為 {(calculation.totalDeptWeight * 100).toFixed(1)}%，不等於 100%，請調整。</span>
+            </div>
+          )}
+
+          {/* 組織節點瀑布流 */}
+          <div className="space-y-8 relative">
+            {calculation.processedDepts.map((dept, dIdx) => (
+                <div key={dept.id} className="relative pl-12">
+                    {/* 部門卡片 */}
+                    <div className="absolute left-0 top-0 bottom-0 w-1 bg-slate-200 rounded-full ml-2" />
+                    <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
+                        <div className="bg-slate-800 text-white p-5 flex justify-between items-center">
+                            <div className="flex items-center gap-4">
+                                <div className="p-2 bg-white/10 rounded-lg"><Users size={20} /></div>
+                                <input 
+                                    value={dept.name} 
+                                    onChange={(e)=>updateDept(dept.id, 'name', e.target.value)}
+                                    className="bg-transparent font-black text-xl border-none focus:ring-0 w-48"
+                                />
+                            </div>
+                            <div className="flex items-center gap-8">
+                                <div className="text-right">
+                                    <label className="text-[10px] font-black text-slate-400 block mb-1">部門權重 (%)</label>
+                                    <input 
+                                        type="number" 
+                                        value={dept.weight * 100} 
+                                        onChange={(e)=>updateDept(dept.id, 'weight', e.target.value / 100)}
+                                        className="w-16 bg-white/10 border border-white/20 rounded text-center font-black"
+                                    />
+                                </div>
+                                <div className="text-right">
+                                    <p className="text-[10px] font-black text-slate-400 mb-1">部門績效水庫</p>
+                                    <p className="text-xl font-black text-amber-400">{formatNum(dept.deptBudget)}</p>
+                                </div>
+                                <button onClick={()=>removeDept(dept.id)} className="text-slate-500 hover:text-red-400 transition-colors ml-4"><Trash2 size={18} /></button>
+                            </div>
+                        </div>
+
+                        <div className="p-6 grid grid-cols-1 lg:grid-cols-12 gap-8">
+                            {/* 處級垂直分配 */}
+                            <div className="lg:col-span-4 space-y-4">
+                                <div className="bg-indigo-50 border border-indigo-100 p-5 rounded-2xl">
+                                    <div className="flex justify-between items-center mb-2">
+                                        <h4 className="text-xs font-black text-indigo-400 uppercase">處級主管分配權重</h4>
+                                        <div className="flex items-center gap-2">
+                                            <input 
+                                                type="number" 
+                                                value={dept.headRatio * 100} 
+                                                onChange={(e)=>updateDept(dept.id, 'headRatio', e.target.value / 100)}
+                                                className="w-12 text-center text-xs font-black bg-white border border-indigo-200 rounded"
+                                            /> %
+                                        </div>
+                                    </div>
+                                    <p className="text-xl font-black text-indigo-700">{formatNum(dept.headBonus)}</p>
+                                </div>
+                                <div className="flex justify-center"><ArrowRight className="rotate-90 text-slate-300" /></div>
+                                <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100">
+                                    <p className="text-[10px] font-black text-slate-400 uppercase mb-1">剩餘可分配部級水庫</p>
+                                    <p className="text-lg font-black text-slate-700">{formatNum(dept.subUnitPoolTotal)}</p>
+                                </div>
+                            </div>
+
+                            {/* 部級單位清單 */}
+                            <div className="lg:col-span-8 space-y-4">
+                                <div className="flex justify-between items-center">
+                                    <h4 className="text-sm font-black text-slate-500">部級單位節點</h4>
+                                    <button onClick={()=>addSubUnit(dept.id)} className="text-indigo-600 text-xs font-bold hover:underline">+ 新增部級</button>
+                                </div>
+                                <div className="grid gap-4">
+                                    {dept.processedSubUnits.map(sub => (
+                                        <div key={sub.id} className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col md:flex-row justify-between items-center gap-4 hover:border-amber-400 transition-all group">
+                                            <div className="flex items-center gap-4 flex-1">
+                                                <div className="bg-slate-100 p-2 rounded-lg font-black text-slate-400">{sub.name[0]}</div>
+                                                <div>
+                                                    <input 
+                                                        value={sub.name} 
+                                                        onChange={(e)=>updateSubUnit(dept.id, sub.id, 'name', e.target.value)}
+                                                        className="font-black text-slate-700 border-none p-0 focus:ring-0 w-32"
+                                                    />
+                                                    <div className="flex gap-4 mt-1">
+                                                        <div className="flex items-center gap-1 text-[10px] font-bold text-slate-400">權重: 
+                                                            <input type="number" value={sub.weight*100} onChange={(e)=>updateSubUnit(dept.id, sub.id, 'weight', e.target.value/100)} className="w-8 border-none bg-transparent p-0 focus:ring-0 text-amber-600 font-black" />%
+                                                        </div>
+                                                        <div className="flex items-center gap-1 text-[10px] font-bold text-slate-400">人數: 
+                                                            <input type="number" value={sub.staffCount} onChange={(e)=>updateSubUnit(dept.id, sub.id, 'staffCount', e.target.value)} className="w-8 border-none bg-transparent p-0 focus:ring-0 text-blue-600 font-black" />人
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-4 border-l pl-4 border-slate-100">
+                                                <div className="text-right">
+                                                    <p className="text-[10px] font-black text-slate-400 uppercase">預估部級水庫</p>
+                                                    <p className="text-sm font-black">{formatNum(sub.subBudget)}</p>
+                                                </div>
+                                                <div className="text-right bg-emerald-50 px-3 py-1 rounded-xl">
+                                                    <p className="text-[10px] font-black text-emerald-400 uppercase">人均績效</p>
+                                                    <p className="text-sm font-black text-emerald-600">{formatNum(sub.perStaff)}</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            ))}
+          </div>
+        </section>
+      </main>
+
+      {/* Footer Info */}
+      <footer className="fixed bottom-0 left-0 right-0 bg-white border-t p-4 shadow-2xl flex justify-center gap-8">
+        <div className="flex items-center gap-2"><div className="w-3 h-3 bg-amber-500 rounded-full" /><span className="text-xs font-bold text-slate-500">水庫水源計算</span></div>
+        <div className="flex items-center gap-2"><div className="w-3 h-3 bg-indigo-600 rounded-full" /><span className="text-xs font-bold text-slate-500">處級提撥</span></div>
+        <div className="flex items-center gap-2"><div className="w-3 h-3 bg-emerald-500 rounded-full" /><span className="text-xs font-bold text-slate-500">部級基層分配</span></div>
+      </footer>
+    </div>
+  );
+};
+
+// 小組件：Kw 輸入
+const KwInput = ({ label, value, onChange, color }) => {
+    const colorClass = color === 'amber' ? 'focus:ring-amber-500 text-amber-600' : 
+                       color === 'emerald' ? 'focus:ring-emerald-500 text-emerald-600' : 'focus:ring-blue-500 text-blue-600';
+    return (
+        <div className="space-y-1">
+            <label className="text-[10px] font-black text-slate-500 uppercase flex justify-between">
+                {label} 
+                <Info size={12} className="opacity-30" />
+            </label>
+            <input 
+                type="number" 
+                value={value} 
+                onChange={(e) => onChange(e.target.value)}
+                className={`w-full px-3 py-2 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:outline-none font-black ${colorClass}`}
+            />
+        </div>
+    );
+}
+
+export default App;
